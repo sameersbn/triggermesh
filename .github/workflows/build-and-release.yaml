@@ -92,18 +92,18 @@ jobs:
         [[ ${GITHUB_REF_TYPE} == "tag" ]] && IMAGE_TAG=${GITHUB_REF_NAME}
         echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
-    - name: Publish container images to DockerHub
-      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
-      env:
-        KO_DOCKER_REPO: docker.io/triggermesh
-        KOFLAGS: --jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}
-        DIST_DIR: /tmp/dist
-      run: |
-        IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
+    # - name: Publish container images to DockerHub
+    #   if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    #   env:
+    #     KO_DOCKER_REPO: docker.io/triggermesh/sameer
+    #     KOFLAGS: --jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}
+    #     DIST_DIR: /tmp/dist
+    #   run: |
+    #     IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
 
     - name: Publish container images to GCR
       env:
-        KO_DOCKER_REPO: gcr.io/triggermesh
+        KO_DOCKER_REPO: gcr.io/triggermesh/sameer
         KOFLAGS: --jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}
         DIST_DIR: /tmp/dist
       run: |
@@ -130,59 +130,59 @@ jobs:
         path: /tmp/dist
         retention-days: 14
 
-  update-config:
-    if: ${{ github.event_name != 'pull_request' }}
-    name: Update Config Manifests
-    runs-on: ubuntu-latest
-    needs: publish-images
-    steps:
+  # update-config:
+  #   if: ${{ github.event_name != 'pull_request' }}
+  #   name: Update Config Manifests
+  #   runs-on: ubuntu-latest
+  #   needs: publish-images
+  #   steps:
 
-    - name: Checkout
-      uses: actions/checkout@v3
+  #   - name: Checkout
+  #     uses: actions/checkout@v3
 
-    - name: Checkout triggermesh/config
-      uses: actions/checkout@v3
-      with:
-        path: 'tm-config'
-        ref: 'main'
-        repository: 'triggermesh/config'
-        token: ${{ secrets.TM_CONFIG_TOKEN }}
+  #   - name: Checkout triggermesh/config
+  #     uses: actions/checkout@v3
+  #     with:
+  #       path: 'tm-config'
+  #       ref: 'main'
+  #       repository: 'triggermesh/config'
+  #       token: ${{ secrets.TM_CONFIG_TOKEN }}
 
-    - name: Set IMAGE_TAG
-      id: image-tag
-      run: |
-        IMAGE_TAG=${GITHUB_SHA}
-        [[ ${GITHUB_REF_TYPE} == "tag" ]] && IMAGE_TAG=${GITHUB_REF_NAME}
-        echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+  #   - name: Set IMAGE_TAG
+  #     id: image-tag
+  #     run: |
+  #       IMAGE_TAG=${GITHUB_SHA}
+  #       [[ ${GITHUB_REF_TYPE} == "tag" ]] && IMAGE_TAG=${GITHUB_REF_NAME}
+  #       echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
-    - name: Prepare updates
-      working-directory: tm-config
-      run: |
-        sed -i overlays/staging/triggermesh-core/kustomization.yaml -e "s|github.com/triggermesh/triggermesh\(?ref=.*\)\?|github.com/triggermesh/triggermesh?ref="${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
-        if [[ ${{ steps.image-tag.outputs.IMAGE_TAG }} =~ ^v([0-9]{1,}\.){2}[0-9]{1,}$ ]]; then
-          sed -i overlays/prod/triggermesh-core/kustomization.yaml -e "s|github.com/triggermesh/triggermesh\(?ref=.*\)\?|github.com/triggermesh/triggermesh?ref="${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
-        fi
+  #   - name: Prepare updates
+  #     working-directory: tm-config
+  #     run: |
+  #       sed -i overlays/staging/triggermesh-core/kustomization.yaml -e "s|github.com/triggermesh/triggermesh\(?ref=.*\)\?|github.com/triggermesh/triggermesh?ref="${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
+  #       if [[ ${{ steps.image-tag.outputs.IMAGE_TAG }} =~ ^v([0-9]{1,}\.){2}[0-9]{1,}$ ]]; then
+  #         sed -i overlays/prod/triggermesh-core/kustomization.yaml -e "s|github.com/triggermesh/triggermesh\(?ref=.*\)\?|github.com/triggermesh/triggermesh?ref="${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
+  #       fi
 
-        for cmd in ${GITHUB_WORKSPACE}/cmd/*; do
-          sed -i overlays/staging/triggermesh-core/deployments.yaml -e "s|gcr.io/triggermesh/${cmd##*/}:.*|gcr.io/triggermesh/${cmd##*/}:"${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
-          if [[ ${{ steps.image-tag.outputs.IMAGE_TAG }} =~ ^v([0-9]{1,}\.){2}[0-9]{1,}$ ]]; then
-            sed -i overlays/prod/triggermesh-core/deployments.yaml -e "s|gcr.io/triggermesh/${cmd##*/}:.*|gcr.io/triggermesh/${cmd##*/}:"${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
-          fi
-        done
+  #       for cmd in ${GITHUB_WORKSPACE}/cmd/*; do
+  #         sed -i overlays/staging/triggermesh-core/deployments.yaml -e "s|gcr.io/triggermesh/${cmd##*/}:.*|gcr.io/triggermesh/${cmd##*/}:"${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
+  #         if [[ ${{ steps.image-tag.outputs.IMAGE_TAG }} =~ ^v([0-9]{1,}\.){2}[0-9]{1,}$ ]]; then
+  #           sed -i overlays/prod/triggermesh-core/deployments.yaml -e "s|gcr.io/triggermesh/${cmd##*/}:.*|gcr.io/triggermesh/${cmd##*/}:"${{ steps.image-tag.outputs.IMAGE_TAG }}"|g"
+  #         fi
+  #       done
 
-        git --no-pager diff
+  #       git --no-pager diff
 
-    - name: Commit and push changes
-      working-directory: tm-config
-      run: |
-        git add -A
-        git status --porcelain
-        if [[ $(git status --porcelain | wc -l) -gt 0 ]]; then
-          git config --global user.name 'TriggerMesh Bot'
-          git config --global user.email 'bot@triggermesh.com'
-          git commit -m "Update triggermesh-core deployment to ref '${{ steps.image-tag.outputs.IMAGE_TAG }}'"
-          git push
-        fi
+  #   - name: Commit and push changes
+  #     working-directory: tm-config
+  #     run: |
+  #       git add -A
+  #       git status --porcelain
+  #       if [[ $(git status --porcelain | wc -l) -gt 0 ]]; then
+  #         git config --global user.name 'TriggerMesh Bot'
+  #         git config --global user.email 'bot@triggermesh.com'
+  #         git commit -m "Update triggermesh-core deployment to ref '${{ steps.image-tag.outputs.IMAGE_TAG }}'"
+  #         git push
+  #       fi
 
   create-release:
     name: Create Release
