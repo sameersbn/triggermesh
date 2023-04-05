@@ -110,7 +110,7 @@ jobs:
         # go install .
         # popd
 
-        if [[ contains(github.ref, 'refs/tags/') ]]; then
+        if [[ ${GITHUB_REF_TYPE} == "tag" ]]; then
           export KOFLAGS='--jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}'
         else
           export KOFLAGS='--jobs=8 --platform=linux/amd64 --push=${{ github.event_name != 'pull_request' }}'
