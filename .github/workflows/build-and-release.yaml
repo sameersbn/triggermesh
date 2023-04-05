@@ -101,58 +101,40 @@ jobs:
     #   run: |
     #     IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
 
-    - name: Publish container linux/amd64 images to GCR
-      if: github.event_name == 'push' && !contains(github.ref, 'refs/tags/')
-      env:
-        KO_DOCKER_REPO: gcr.io/triggermesh
-        KOFLAGS: --jobs=8 --platform=linux/amd64 --push=${{ github.event_name != 'pull_request' }}
-        DIST_DIR: /tmp/dist
-      run: |
-        pushd hack/manifest-cleaner
-        go install .
-        popd
-
-        IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
-
-        declare -a release_files=(
-          triggermesh-crds.yaml
-          triggermesh.yaml
-        )
-
-        for f in "${release_files[@]}"; do
-          manifest-cleaner <"${DIST_DIR}/${f}" >"${DIST_DIR}/${f}.clean"
-          mv "${DIST_DIR}/${f}.clean" "${DIST_DIR}/${f}"
-        done
-
-    - name: Publish multi-platform container images to GCR
-      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    - name: Publish container images to GCR
       env:
         KO_DOCKER_REPO: gcr.io/triggermesh/sameer
-        KOFLAGS: --jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}
         DIST_DIR: /tmp/dist
       run: |
-        pushd hack/manifest-cleaner
-        go install .
-        popd
+        # pushd hack/manifest-cleaner
+        # go install .
+        # popd
 
-        IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
+        if [[ contains(github.ref, 'refs/tags/') ]]; then
+          export KOFLAGS='--jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}'
+        else
+          export KOFLAGS='--jobs=8 --platform=linux/amd64 --push=${{ github.event_name != 'pull_request' }}'
+        fi
 
-        declare -a release_files=(
-          triggermesh-crds.yaml
-          triggermesh.yaml
-        )
+        echo $KOFLAGS
+    #     IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
 
-        for f in "${release_files[@]}"; do
-          manifest-cleaner <"${DIST_DIR}/${f}" >"${DIST_DIR}/${f}.clean"
-          mv "${DIST_DIR}/${f}.clean" "${DIST_DIR}/${f}"
-        done
+    #     declare -a release_files=(
+    #       triggermesh-crds.yaml
+    #       triggermesh.yaml
+    #     )
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@master
-      with:
-        name: manifests
-        path: /tmp/dist
-        retention-days: 14
+    #     for f in "${release_files[@]}"; do
+    #       manifest-cleaner <"${DIST_DIR}/${f}" >"${DIST_DIR}/${f}.clean"
+    #       mv "${DIST_DIR}/${f}.clean" "${DIST_DIR}/${f}"
+    #     done
+
+    # - name: Upload artifact
+    #   uses: actions/upload-artifact@master
+    #   with:
+    #     name: manifests
+    #     path: /tmp/dist
+    #     retention-days: 14
 
   # update-config:
   #   if: ${{ github.event_name != 'pull_request' }}
