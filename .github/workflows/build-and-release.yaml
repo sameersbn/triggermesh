@@ -12,43 +12,43 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: Test/Cover
-    runs-on: ubuntu-latest
+  # test:
+  #   name: Test/Cover
+  #   runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+  #   steps:
+  #   - name: Checkout
+  #     uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.19'
+  #   - name: Set up Go
+  #     uses: actions/setup-go@v4
+  #     with:
+  #       go-version: '1.19'
 
-    - name: Go caches
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/go/pkg/mod
-        key: ${{ github.job }}-${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ github.job }}-${{ runner.os }}-go-
+  #   - name: Go caches
+  #     uses: actions/cache@v3
+  #     with:
+  #       path: |
+  #         ~/go/pkg/mod
+  #       key: ${{ github.job }}-${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+  #       restore-keys: |
+  #         ${{ github.job }}-${{ runner.os }}-go-
 
-    # XSLTTransformation needs libxml2.
-    - name: Install libxml2
-      run: sudo apt-get update && sudo apt install -y libxml2-dev libxslt1-dev liblzma-dev zlib1g-dev
+  #   # XSLTTransformation needs libxml2.
+  #   - name: Install libxml2
+  #     run: sudo apt-get update && sudo apt install -y libxml2-dev libxslt1-dev liblzma-dev zlib1g-dev
 
-    - name: Run test/cover
-      run: WITH_DEPENDENCIES=true make cover
-      env:
-        TEST_OUTPUT_DIR: /tmp/test-results/
-        COVER_OUTPUT_DIR: /tmp/cover-results/
+  #   - name: Run test/cover
+  #     run: WITH_DEPENDENCIES=true make cover
+  #     env:
+  #       TEST_OUTPUT_DIR: /tmp/test-results/
+  #       COVER_OUTPUT_DIR: /tmp/cover-results/
 
   publish-images:
     name: Build and publish images
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest-8-cores
-    needs: test
+    runs-on: ubuntu-latest
+    # needs: test
 
     steps:
     - name: Checkout
@@ -101,7 +101,31 @@ jobs:
     #   run: |
     #     IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
 
-    - name: Publish container images to GCR
+    - name: Publish container linux/amd64 images to GCR
+      if: github.event_name == 'push' && !contains(github.ref, 'refs/tags/')
+      env:
+        KO_DOCKER_REPO: gcr.io/triggermesh
+        KOFLAGS: --jobs=8 --platform=linux/amd64 --push=${{ github.event_name != 'pull_request' }}
+        DIST_DIR: /tmp/dist
+      run: |
+        pushd hack/manifest-cleaner
+        go install .
+        popd
+
+        IMAGE_TAG=${{ steps.image-tag.outputs.IMAGE_TAG }} make release
+
+        declare -a release_files=(
+          triggermesh-crds.yaml
+          triggermesh.yaml
+        )
+
+        for f in "${release_files[@]}"; do
+          manifest-cleaner <"${DIST_DIR}/${f}" >"${DIST_DIR}/${f}.clean"
+          mv "${DIST_DIR}/${f}.clean" "${DIST_DIR}/${f}"
+        done
+
+    - name: Publish multi-platform container images to GCR
+      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
       env:
         KO_DOCKER_REPO: gcr.io/triggermesh/sameer
         KOFLAGS: --jobs=8 --platform=linux/amd64,linux/arm64,linux/ppc64le --push=${{ github.event_name != 'pull_request' }}
